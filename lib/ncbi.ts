@@ -46,22 +46,41 @@ export class NcbiError extends Error {
   }
 }
 
+const MAX_RETRIES = 4;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+// The in-process throttle only spaces requests within one instance. On
+// serverless platforms (Vercel) each request can run in its own instance with
+// no shared state, so bursts still occasionally trip NCBI's 429. Retry those
+// with exponential backoff + jitter, honouring Retry-After when present, so a
+// transient rate-limit never surfaces to the user.
 async function ncbiFetch(url: string, init?: RequestInit): Promise<Response> {
   return throttle(async () => {
-    const res = await fetch(url, {
-      ...init,
-      headers: { Accept: "application/json", ...(init?.headers ?? {}) },
-      // Datasets/E-utilities responses change often; never let Next cache them.
-      cache: "no-store",
-    });
-    if (!res.ok) {
+    for (let attempt = 0; ; attempt++) {
+      const res = await fetch(url, {
+        ...init,
+        headers: { Accept: "application/json", ...(init?.headers ?? {}) },
+        cache: "no-store",
+      });
+
+      if (res.ok) return res;
+
+      if (res.status === 429 && attempt < MAX_RETRIES) {
+        const retryAfter = Number(res.headers.get("retry-after"));
+        const backoff = 300 * 2 ** attempt + Math.random() * 200;
+        await sleep(retryAfter > 0 ? retryAfter * 1000 : backoff);
+        continue;
+      }
+
       const body = await res.text().catch(() => "");
       throw new NcbiError(
         `NCBI request failed (${res.status}): ${body.slice(0, 200)}`,
         res.status === 429 ? 429 : 502,
       );
     }
-    return res;
   });
 }
 

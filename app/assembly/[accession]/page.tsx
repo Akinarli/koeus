@@ -80,26 +80,36 @@ function AssemblyView({ params }: { params: Promise<{ accession: string }> }) {
         return;
       }
 
-      // Each record is a separate NCBI round-trip; render them as they land.
-      await Promise.all(
-        hits.map(async (hit) => {
-          try {
-            const r = await fetch(
-              `/api/protein-fetch?id=${encodeURIComponent(hit.id)}`,
-            );
-            const rec = (await r.json()) as ProteinRecord & { error?: string };
-            if (r.ok && !rec.error) setRecords((prev) => [...prev, rec]);
-            else
-              setFetchErrors((prev) => [
-                ...prev,
-                rec.error ?? `HTTP ${r.status} for ${hit.id}`,
-              ]);
-          } catch (err) {
+      // Each record is a separate NCBI round-trip. Fetch a few at a time rather
+      // than firing all at once: on serverless each request is its own instance
+      // hitting NCBI, so a bounded pool keeps us under the rate limit while
+      // still letting records render as they land.
+      const fetchOne = async (hit: ProteinHit) => {
+        try {
+          const r = await fetch(
+            `/api/protein-fetch?id=${encodeURIComponent(hit.id)}`,
+          );
+          const rec = (await r.json()) as ProteinRecord & { error?: string };
+          if (r.ok && !rec.error) setRecords((prev) => [...prev, rec]);
+          else
             setFetchErrors((prev) => [
               ...prev,
-              err instanceof Error ? err.message : `failed to load ${hit.id}`,
+              rec.error ?? `HTTP ${r.status} for ${hit.id}`,
             ]);
-          }
+        } catch (err) {
+          setFetchErrors((prev) => [
+            ...prev,
+            err instanceof Error ? err.message : `failed to load ${hit.id}`,
+          ]);
+        }
+      };
+
+      const CONCURRENCY = 3;
+      const queue = [...hits];
+      await Promise.all(
+        Array.from({ length: Math.min(CONCURRENCY, queue.length) }, async () => {
+          let next: ProteinHit | undefined;
+          while ((next = queue.shift())) await fetchOne(next);
         }),
       );
       setStatus("done");

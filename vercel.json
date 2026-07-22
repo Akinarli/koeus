@@ -1,0 +1,11 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "functions": {
+    "api/parse_genpept.py": {
+      "runtime": "@vercel/python@4.3.0"
+    }
+  },
+  "env": {
+    "PARSER_ENDPOINT": "/api/parse_genpept"
+  }
+}

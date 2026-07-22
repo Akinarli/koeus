@@ -1,0 +1,177 @@
+@import "tailwindcss";
+
+/* ---------------------------------------------------------------------------
+   Geobacillus / Parageobacillus are thermophiles: they live at 45–75 °C in hot
+   springs, geothermal soil and deep oil reservoirs. The palette is built from
+   that world — cool lab paper and deep petrol for the interface, with a single
+   ember accent reserved for heat/emphasis. Green is never decorative here: it
+   means "type material", matching NCBI's own verified badge.
+--------------------------------------------------------------------------- */
+
+:root {
+  --paper: #fafaf8;
+  --surface: #ffffff;
+  --surface-sunk: #f2f3ef;
+  --ink: #15171a;
+  --muted: #63676c;
+  --rule: #e3e5e0;
+  --petrol: #0e4b5a;
+  --petrol-soft: #dceaee;
+  --ember: #c2410c;
+  --ember-soft: #fbe6da;
+  --verified: #15803d;
+  --verified-soft: #dcfce7;
+  --focus: #0e4b5a;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #0c1113;
+    --surface: #121a1d;
+    --surface-sunk: #0f1619;
+    --ink: #e9ecea;
+    --muted: #8d9498;
+    --rule: #1f272a;
+    --petrol: #6fc9de;
+    --petrol-soft: #10333c;
+    --ember: #fb8b3c;
+    --ember-soft: #33190c;
+    --verified: #4ade80;
+    --verified-soft: #10301c;
+    --focus: #6fc9de;
+  }
+}
+
+@theme inline {
+  --color-paper: var(--paper);
+  --color-surface: var(--surface);
+  --color-sunk: var(--surface-sunk);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-rule: var(--rule);
+  --color-petrol: var(--petrol);
+  --color-petrol-soft: var(--petrol-soft);
+  --color-ember: var(--ember);
+  --color-ember-soft: var(--ember-soft);
+  --color-verified: var(--verified);
+  --color-verified-soft: var(--verified-soft);
+
+  --font-display: var(--font-fraunces), Georgia, serif;
+  --font-sans: var(--font-plex-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-plex-mono), ui-monospace, monospace;
+}
+
+html {
+  background: var(--paper);
+  color: var(--ink);
+}
+
+body {
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Fraunces carries the personality; used only for page + record titles. */
+.display {
+  font-family: var(--font-display);
+  font-optical-sizing: auto;
+  font-variation-settings: "SOFT" 20, "WONK" 1;
+  letter-spacing: -0.018em;
+  line-height: 1.12;
+}
+
+/* Accessions, taxids and GO ids are data — they get the mono face and the
+   tabular figures that make them line up in a column. */
+.data {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "ss01";
+  letter-spacing: -0.01em;
+}
+
+/* Small caps-ish eyebrow used for section labels. */
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+::selection {
+  background: var(--petrol-soft);
+  color: var(--ink);
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+/* --- Motion -------------------------------------------------------------
+   Records genuinely arrive one at a time from NCBI, so the stagger reflects
+   real data flow rather than decorating the page. Everything else is a short
+   state change: no bouncing, no scattered effects.
+------------------------------------------------------------------------ */
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes sweep {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(300%);
+  }
+}
+
+.rise {
+  animation: rise 0.42s cubic-bezier(0.22, 0.68, 0.32, 1) both;
+}
+
+/* Indeterminate progress: an ember pulse travelling along a hairline, echoing
+   heat moving through a filament. Used while NCBI requests are in flight. */
+.thermal-track {
+  position: relative;
+  height: 2px;
+  overflow: hidden;
+  background: var(--rule);
+  border-radius: 2px;
+}
+
+.thermal-track::after {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  width: 33%;
+  background: linear-gradient(90deg, transparent, var(--ember), transparent);
+  animation: sweep 1.25s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+  .thermal-track::after {
+    animation: none;
+    width: 100%;
+    opacity: 0.4;
+  }
+}

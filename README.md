@@ -13,8 +13,8 @@ See [`PROJECT_SPEC1.md`](./PROJECT_SPEC1.md) for the full spec.
 - NCBI calls + GenPept parsing run **server-side** (API key stays off the client).
 - GenPept parsing uses a **built-in TypeScript parser** (`lib/genpeptParser.ts`),
   so the app runs with **zero Python setup**. A BioPython parser
-  (`api/parse_genpept.py`) is available as an opt-in (see below) and the app
-  falls back to the TS parser automatically if it fails.
+  (`scripts/parse_genpept.py`) is available as a local opt-in (see below) and the
+  app falls back to the TS parser automatically if it fails.
 
 ## Setup
 
@@ -62,25 +62,28 @@ The parser has a built-in self-test against the `WP_051985049` flippase record
 from the spec:
 
 ```bash
-./.venv/bin/python api/parse_genpept.py --selftest
+./.venv/bin/python scripts/parse_genpept.py --selftest
 ```
 
 ## API routes
 
 | Route | Purpose |
 | --- | --- |
-| `GET /api/taxon?q=<name>` | Resolve species name → taxid (NCBI Datasets) |
-| `GET /api/genomes?taxid=<id>` | List assemblies, type material first |
-| `GET /api/protein-search?q=<name>&taxid=<id>` | esearch db=protein → UIDs |
+| `GET /api/taxon?q=<name>` | Resolve a genus/species name → taxid + rank (NCBI Datasets taxonomy) |
+| `GET /api/species?taxid=<id>` | Species under a genus, with assembly counts |
+| `GET /api/genomes?taxid=<id>` | Assemblies for a taxon, type material first |
+| `GET /api/protein-search?q=<name>&taxid=<id>` | esearch db=protein → UIDs; broadens to a wildcard when the exact term misses |
 | `GET /api/protein-fetch?id=<uid>` | efetch GenPept → parsed JSON (`&raw=1` for the flat file) |
-| `POST /api/parse_genpept` | (Vercel Python fn) raw GenPept → JSON |
 
-## Deployment notes
+## Deployment
 
-On Vercel, `api/parse_genpept.py` is deployed as a Python serverless function
-(see `vercel.json`) and `PARSER_ENDPOINT=/api/parse_genpept` routes parsing there
-instead of spawning a local Python process. Set `NCBI_API_KEY` in the Vercel
-project env.
+Deploys as a standard Next.js app — Vercel, Netlify, or any Node host. Parsing
+uses the built-in TypeScript parser, so no Python runtime is required in
+production. Set one environment variable:
+
+```
+NCBI_API_KEY=your_key_here
+```
 
 ## Out of scope (v1)
 

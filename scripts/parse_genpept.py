@@ -7,11 +7,11 @@ etc. are handled robustly instead of with brittle regex.
 Three ways to run it:
 
   * CLI / subprocess (what the Next.js dev server uses locally):
-        echo "<genpept text>" | python3 api/parse_genpept.py
+        echo "<genpept text>" | python3 scripts/parse_genpept.py
     reads GenPept from stdin, writes JSON to stdout.
 
   * Self-test against the WP_051985049 ground-truth fixture from the spec:
-        python3 api/parse_genpept.py --selftest
+        python3 scripts/parse_genpept.py --selftest
 
   * Vercel Python serverless function: the `handler` class below is picked up by
     Vercel's Python runtime; POST the raw GenPept text as the request body.

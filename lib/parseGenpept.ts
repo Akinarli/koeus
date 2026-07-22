@@ -1,11 +1,10 @@
 // Parses raw GenPept text into a structured ProteinRecord.
 //
 // The built-in TypeScript parser (lib/genpeptParser.ts) is the default, so the
-// app works with zero Python setup. The BioPython parser stays available as an
-// opt-in for those who want it — set USE_PYTHON_PARSER=1 to spawn
-// api/parse_genpept.py locally, or PARSER_ENDPOINT to POST to the Vercel Python
-// serverless function. Either way, any failure falls back to the TS parser so a
-// misconfigured Python never produces a blank result.
+// app works with zero Python setup and deploys as a plain Next.js app. The
+// BioPython parser stays available as a local opt-in — set USE_PYTHON_PARSER=1
+// to spawn scripts/parse_genpept.py. Any failure falls back to the TS parser so
+// a misconfigured Python never produces a blank result.
 
 import { spawn } from "node:child_process";
 import path from "node:path";
@@ -24,7 +23,7 @@ function resolvePythonBin(): string {
 }
 
 const PYTHON_BIN = resolvePythonBin();
-const SCRIPT_PATH = path.join(process.cwd(), "api", "parse_genpept.py");
+const SCRIPT_PATH = path.join(process.cwd(), "scripts", "parse_genpept.py");
 
 // If set (e.g. on Vercel), POST raw GenPept to this URL to use the Python
 // serverless function. Opt-in.

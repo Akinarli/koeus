@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { ProteinDomain, ProteinRecord } from "@/lib/types";
 import GoTermChip from "@/components/GoTermChip";
 import ProteinSequence from "@/components/ProteinSequence";
+import CompareToggle from "@/components/CompareToggle";
 
 // A domain diagram, not just a length bar: a thin backbone spans the protein's
 // length (scaled against the longest result so cards are comparable), and each
@@ -164,6 +165,9 @@ export default function ProteinResultCard({
         >
           permalink
         </Link>
+        <span className="ml-auto">
+          <CompareToggle record={record} />
+        </span>
       </div>
 
       {record.length != null && (

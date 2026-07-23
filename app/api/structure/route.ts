@@ -12,6 +12,9 @@ const DAY = 86_400;
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const accession = (searchParams.get("accession") ?? "").trim();
+  // ?check=1 asks only whether a model exists (for the card badge), skipping the
+  // ~100 KB PDB download so it can run for a whole page of results cheaply.
+  const checkOnly = searchParams.get("check") === "1";
   if (!accession) {
     return NextResponse.json({ error: "missing ?accession=" }, { status: 400 });
   }
@@ -36,6 +39,7 @@ export async function GET(request: Request) {
     };
     const uniprot = uData.results?.[0]?.primaryAccession;
     if (!uniprot) {
+      if (checkOnly) return NextResponse.json({ available: false });
       return NextResponse.json(
         { error: `No UniProt entry maps to ${accession}.` },
         { status: 404 },
@@ -55,6 +59,7 @@ export async function GET(request: Request) {
       },
     );
     if (!afRes.ok) {
+      if (checkOnly) return NextResponse.json({ available: false, uniprot });
       return NextResponse.json(
         { error: `No AlphaFold model for ${uniprot}.`, uniprot },
         { status: 404 },
@@ -66,11 +71,15 @@ export async function GET(request: Request) {
     }>;
     const pdbUrl = afData[0]?.pdbUrl;
     if (!pdbUrl) {
+      if (checkOnly) return NextResponse.json({ available: false, uniprot });
       return NextResponse.json(
         { error: `No AlphaFold model for ${uniprot}.`, uniprot },
         { status: 404 },
       );
     }
+
+    // Availability confirmed — the badge doesn't need the model bytes.
+    if (checkOnly) return NextResponse.json({ available: true, uniprot });
 
     const mRes = await fetch(pdbUrl, { next: { revalidate: DAY } });
     if (!mRes.ok) {

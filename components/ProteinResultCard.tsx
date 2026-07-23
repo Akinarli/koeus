@@ -3,6 +3,7 @@ import type { ProteinDomain, ProteinRecord } from "@/lib/types";
 import GoTermChip from "@/components/GoTermChip";
 import ProteinSequence from "@/components/ProteinSequence";
 import CompareToggle from "@/components/CompareToggle";
+import StructureBadge from "@/components/StructureBadge";
 
 // A domain diagram, not just a length bar: a thin backbone spans the protein's
 // length (scaled against the longest result so cards are comparable), and each
@@ -159,6 +160,7 @@ export default function ProteinResultCard({
             {record.molWt.toLocaleString("en-US")} Da
           </span>
         )}
+        <StructureBadge accession={record.version || record.accession} />
         <Link
           href={`/protein/${encodeURIComponent(record.version || record.accession)}`}
           className="data text-[11px] text-muted underline decoration-rule underline-offset-[3px] hover:text-petrol hover:decoration-current"

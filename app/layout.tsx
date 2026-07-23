@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Fraunces, IBM_Plex_Sans, IBM_Plex_Mono } from "next/font/google";
+import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
 
 const fraunces = Fraunces({
@@ -69,6 +70,7 @@ export default function RootLayout({
             and E-utilities. An independent tool, not affiliated with NCBI.
           </footer>
         </div>
+        <Analytics />
       </body>
     </html>
   );

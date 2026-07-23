@@ -115,6 +115,16 @@ export interface AssemblyStats {
   pseudogene?: number;
   /** Annotation release name, e.g. "NCBI RefSeq GCF_000750005.2-RS_2025_12_10". */
   annotationName?: string;
+  /** NCBI taxonomy-check status from ANI analysis, e.g. "OK", "INCONCLUSIVE". */
+  taxonomyCheckStatus?: string;
+  /** ANI category, e.g. "type", "species". */
+  aniCategory?: string;
+  /** Best ANI match percentage against a reference/type assembly. */
+  bestAni?: number;
+  /** Organism of the best ANI match. */
+  bestAniOrganism?: string;
+  /** Assembly accession of the best ANI match. */
+  bestAniAssembly?: string;
 }
 
 export interface ApiError {

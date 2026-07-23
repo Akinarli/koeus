@@ -52,18 +52,35 @@ function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
 }
 
+// Cache TTLs (seconds) for the Next.js Data Cache. Genome/taxonomy data is
+// effectively static; protein records barely change. Caching cuts latency and,
+// crucially on serverless, keeps repeated queries from re-hitting NCBI and
+// tripping the rate limit.
+export const TTL = {
+  taxonomy: 86_400, // 1 day
+  genome: 86_400,
+  protein: 86_400,
+  search: 3_600, // 1 hour — new records appear more often
+} as const;
+
 // The in-process throttle only spaces requests within one instance. On
 // serverless platforms (Vercel) each request can run in its own instance with
 // no shared state, so bursts still occasionally trip NCBI's 429. Retry those
 // with exponential backoff + jitter, honouring Retry-After when present, so a
 // transient rate-limit never surfaces to the user.
-async function ncbiFetch(url: string, init?: RequestInit): Promise<Response> {
+async function ncbiFetch(
+  url: string,
+  init?: RequestInit,
+  revalidate?: number,
+): Promise<Response> {
   return throttle(async () => {
     for (let attempt = 0; ; attempt++) {
       const res = await fetch(url, {
         ...init,
         headers: { Accept: "application/json", ...(init?.headers ?? {}) },
-        cache: "no-store",
+        ...(revalidate != null
+          ? { next: { revalidate } }
+          : { cache: "no-store" as const }),
       });
 
       if (res.ok) return res;
@@ -94,7 +111,7 @@ export async function datasetsGenomeByTaxon(
   const url = `${DATASETS_BASE}/genome/taxon/${encodeURIComponent(taxon)}/dataset_report${
     qs ? `?${qs}` : ""
   }`;
-  const res = await ncbiFetch(url);
+  const res = await ncbiFetch(url, undefined, TTL.genome);
   return res.json();
 }
 
@@ -107,7 +124,7 @@ export async function datasetsGenomeByAccession(
   const url = `${DATASETS_BASE}/genome/accession/${encodeURIComponent(accession)}/dataset_report${
     qs ? `?${qs}` : ""
   }`;
-  const res = await ncbiFetch(url);
+  const res = await ncbiFetch(url, undefined, TTL.genome);
   return res.json();
 }
 
@@ -120,7 +137,7 @@ export async function datasetsTaxonomy(taxon: string): Promise<unknown> {
   const url = `${DATASETS_BASE}/taxonomy/taxon/${encodeURIComponent(taxon)}${
     qs ? `?${qs}` : ""
   }`;
-  const res = await ncbiFetch(url);
+  const res = await ncbiFetch(url, undefined, TTL.taxonomy);
   return res.json();
 }
 
@@ -134,7 +151,7 @@ export async function esearch(
     new URLSearchParams({ db, term, retmode: "json", ...extra }),
   );
   const url = `${EUTILS_BASE}/esearch.fcgi?${params.toString()}`;
-  const res = await ncbiFetch(url);
+  const res = await ncbiFetch(url, undefined, TTL.search);
   return res.json();
 }
 
@@ -148,7 +165,7 @@ export async function esummary(
     new URLSearchParams({ db, id: ids.join(","), retmode: "json" }),
   );
   const url = `${EUTILS_BASE}/esummary.fcgi?${params.toString()}`;
-  const res = await ncbiFetch(url);
+  const res = await ncbiFetch(url, undefined, TTL.search);
   return res.json();
 }
 
@@ -162,6 +179,10 @@ export async function efetchText(
     new URLSearchParams({ db, id, retmode: "text", ...extra }),
   );
   const url = `${EUTILS_BASE}/efetch.fcgi?${params.toString()}`;
-  const res = await ncbiFetch(url, { headers: { Accept: "text/plain" } });
+  const res = await ncbiFetch(
+    url,
+    { headers: { Accept: "text/plain" } },
+    TTL.protein,
+  );
   return res.text();
 }

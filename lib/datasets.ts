@@ -38,12 +38,23 @@ export interface DatasetsReport {
       };
     };
   };
+  average_nucleotide_identity?: {
+    taxonomy_check_status?: string;
+    category?: string;
+    best_ani_match?: {
+      ani?: number;
+      organism_name?: string;
+      assembly?: string;
+    };
+  };
 }
 
 /** Pull the assembly stats we display from a report row. */
 export function extractStats(r: DatasetsReport): AssemblyStats {
   const s = r.assembly_stats ?? {};
   const g = r.annotation_info?.stats?.gene_counts ?? {};
+  const ani = r.average_nucleotide_identity ?? {};
+  const best = ani.best_ani_match ?? {};
   const size = s.total_sequence_length;
   return {
     genomeSize: size != null ? Number(size) : undefined,
@@ -54,6 +65,11 @@ export function extractStats(r: DatasetsReport): AssemblyStats {
     proteinCoding: g.protein_coding,
     pseudogene: g.pseudogene,
     annotationName: r.annotation_info?.name,
+    taxonomyCheckStatus: ani.taxonomy_check_status,
+    aniCategory: ani.category,
+    bestAni: best.ani,
+    bestAniOrganism: best.organism_name,
+    bestAniAssembly: best.assembly,
   };
 }
 

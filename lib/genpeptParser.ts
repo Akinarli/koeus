@@ -14,6 +14,7 @@
 import type {
   GoCategory,
   GoTerm,
+  ProteinDomain,
   ProteinRecord,
   ProteinReference,
 } from "@/lib/types";
@@ -137,6 +138,8 @@ export function parseGenpeptTs(text: string): ProteinRecord {
   const goTerms: GoTerm[] = [];
   let product: string | undefined;
   let molWt: number | undefined;
+  let domains: ProteinDomain[] = [];
+  let sequence: string | undefined;
 
   let i = 0;
   while (i < lines.length) {
@@ -202,11 +205,21 @@ export function parseGenpeptTs(text: string): ProteinRecord {
       if (ref.title || ref.journal) references.push(ref);
     } else if (kw === "FEATURES") {
       i++;
-      i = parseFeatures(lines, i, (p, mw, terms) => {
-        if (p && !product) product = p;
-        if (mw != null) molWt = mw;
-        for (const t of terms) goTerms.push(t);
-      });
+      const { data, nextIdx } = parseFeatures(lines, i);
+      if (data.product && !product) product = data.product;
+      if (data.molWt != null) molWt = data.molWt;
+      for (const t of data.go) goTerms.push(t);
+      domains = data.domains;
+      i = nextIdx;
+    } else if (kw === "ORIGIN") {
+      i++;
+      // ORIGIN lines are "   61 mkl..." — strip positions/spaces to the residues.
+      let seq = "";
+      while (i < lines.length && !isTopLevel(lines[i])) {
+        seq += lines[i].replace(/[^A-Za-z]/g, "");
+        i++;
+      }
+      if (seq) sequence = seq.toUpperCase();
     } else {
       i++;
     }
@@ -229,23 +242,34 @@ export function parseGenpeptTs(text: string): ProteinRecord {
   };
   if (molWt != null) record.molWt = molWt;
   if (length != null) record.length = length;
+  else if (sequence) record.length = sequence.length;
+  if (sequence) record.sequence = sequence;
+  if (domains.length > 0) record.domains = domains;
   const ctx = pickContextReference(references, title);
   if (ctx) record.contextReference = ctx;
   return record;
 }
 
-// Walk the FEATURES block, pulling product / GO_* / calculated_mol_wt off the
-// Protein feature. Returns the index just past the features block.
+interface FeatureData {
+  product?: string;
+  molWt?: number;
+  go: GoTerm[];
+  domains: ProteinDomain[];
+}
+
+// Walk the FEATURES block. Qualifiers belong to whichever feature currently
+// applies: product / GO_* / calculated_mol_wt off the Protein feature, and
+// /region_name off each Region feature (drawn later as domains on the scale
+// bar). Returns the parsed data + the index just past the block.
 function parseFeatures(
   lines: string[],
   start: number,
-  emit: (product: string | undefined, molWt: number | undefined, go: GoTerm[]) => void,
-): number {
+): { data: FeatureData; nextIdx: number } {
   let i = start;
-  let inProtein = false;
-  let product: string | undefined;
-  let molWt: number | undefined;
-  const go: GoTerm[] = [];
+  let curType = "";
+  let curStart: number | undefined;
+  let curEnd: number | undefined;
+  const data: FeatureData = { go: [], domains: [] };
 
   while (i < lines.length) {
     const line = lines[i];
@@ -256,14 +280,26 @@ function parseFeatures(
     const isFeatureLine = line.slice(0, 21).trim() !== "" && featureKey !== "";
 
     if (isFeatureLine) {
-      // A new feature key (source, Protein, Region, Site, CDS, ...).
-      inProtein = featureKey === "Protein";
+      // A new feature key (source, Protein, Region, Site, CDS, ...). Parse its
+      // location — "1..331", "<1..331", "23" — into a residue span.
+      curType = featureKey;
+      const loc = line.slice(21).trim();
+      const range = /(\d+)\.\.[<>]?(\d+)/.exec(loc);
+      const single = /^[<>]?(\d+)$/.exec(loc);
+      if (range) {
+        curStart = Number(range[1]);
+        curEnd = Number(range[2]);
+      } else if (single) {
+        curStart = curEnd = Number(single[1]);
+      } else {
+        curStart = curEnd = undefined;
+      }
       i++;
       continue;
     }
 
     const qual = line.trim();
-    if (inProtein && qual.startsWith("/")) {
+    if (qual.startsWith("/")) {
       // Accumulate the (possibly multi-line, quoted) qualifier value.
       let buf = qual;
       let j = i + 1;
@@ -283,24 +319,31 @@ function parseFeatures(
       i = j > i + 1 ? j : i + 1;
 
       const eq = buf.indexOf("=");
-      if (eq !== -1) {
-        const key = buf.slice(1, eq).trim();
-        let value = buf.slice(eq + 1).trim();
-        value = value.replace(/^"/, "").replace(/"$/, "").trim();
-        if (key === "product") {
-          product = value;
-        } else if (key === "calculated_mol_wt") {
+      if (eq === -1) continue;
+      const key = buf.slice(1, eq).trim();
+      const value = buf.slice(eq + 1).trim().replace(/^"/, "").replace(/"$/, "").trim();
+
+      if (curType === "Protein") {
+        if (key === "product") data.product = value;
+        else if (key === "calculated_mol_wt") {
           const n = Number(value);
-          if (!Number.isNaN(n)) molWt = n;
+          if (!Number.isNaN(n)) data.molWt = n;
         } else if (key in GO_QUALIFIERS) {
-          go.push(parseGoValue(value, GO_QUALIFIERS[key]));
+          data.go.push(parseGoValue(value, GO_QUALIFIERS[key]));
         }
+      } else if (
+        curType === "Region" &&
+        key === "region_name" &&
+        curStart != null &&
+        curEnd != null &&
+        value.toLowerCase() !== "n/a"
+      ) {
+        data.domains.push({ name: value, start: curStart, end: curEnd });
       }
       continue;
     }
     i++;
   }
 
-  emit(product, molWt, go);
-  return i;
+  return { data, nextIdx: i };
 }

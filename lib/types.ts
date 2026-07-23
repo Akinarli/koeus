@@ -71,6 +71,14 @@ export interface ProteinReference {
   pubmed?: string;
 }
 
+/** A conserved region / domain from a GenPept `Region` feature, e.g.
+ *  "MATE_like" spanning residues 1–331. Drawn as a segment on the scale bar. */
+export interface ProteinDomain {
+  name: string;
+  start: number;
+  end: number;
+}
+
 export interface ProteinRecord {
   /** From DEFINITION, e.g. "flippase [Geobacillus icigianus]". */
   definition: string;
@@ -89,6 +97,10 @@ export interface ProteinRecord {
   contextReference?: ProteinReference;
   /** Amino-acid length, when present. */
   length?: number;
+  /** Full amino-acid sequence from the ORIGIN block, when present. */
+  sequence?: string;
+  /** Conserved regions / domains from `Region` features. */
+  domains?: ProteinDomain[];
 }
 
 export interface ApiError {

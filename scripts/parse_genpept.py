@@ -149,6 +149,29 @@ def parse_genpept(text: str) -> dict[str, Any]:
 
     context_ref = _pick_context_reference(references, title)
 
+    # Conserved regions -> domains (drawn on the scale bar).
+    domains: list[dict[str, Any]] = []
+    for feat in record.features:
+        if feat.type == "Region":
+            name = _first(feat.qualifiers, "region_name")
+            if not name or name.lower() == "n/a":
+                continue
+            try:
+                domains.append(
+                    {
+                        "name": name,
+                        "start": int(feat.location.start) + 1,
+                        "end": int(feat.location.end),
+                    }
+                )
+            except Exception:  # noqa: BLE001
+                pass
+
+    try:
+        sequence = str(record.seq) if record.seq else ""
+    except Exception:  # noqa: BLE001
+        sequence = ""
+
     result: dict[str, Any] = {
         "definition": definition,
         "title": title,
@@ -165,6 +188,10 @@ def parse_genpept(text: str) -> dict[str, Any]:
         result["length"] = length
     if context_ref is not None:
         result["contextReference"] = context_ref
+    if domains:
+        result["domains"] = domains
+    if sequence:
+        result["sequence"] = sequence.upper()
     return result
 
 

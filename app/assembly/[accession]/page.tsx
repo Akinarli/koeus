@@ -192,7 +192,17 @@ function AssemblyView({ params }: { params: Promise<{ accession: string }> }) {
       </nav>
 
       <header className="mt-3">
-        <h1 className="data text-[20px] font-medium text-ink">{accession}</h1>
+        <div className="flex flex-wrap items-baseline gap-x-3">
+          <h1 className="data text-[20px] font-medium text-ink">{accession}</h1>
+          <a
+            href={`https://www.ncbi.nlm.nih.gov/datasets/genome/${encodeURIComponent(accession)}/`}
+            target="_blank"
+            rel="noreferrer"
+            className="text-[12px] text-petrol underline decoration-rule underline-offset-[3px] hover:decoration-current"
+          >
+            view on NCBI ↗
+          </a>
+        </div>
         <p className="mt-1 text-[13px] text-muted">
           {name && name !== accession && <>{name} · </>}
           <span className="italic">{organism}</span>

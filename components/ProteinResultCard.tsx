@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { ProteinDomain, ProteinRecord } from "@/lib/types";
 import GoTermChip from "@/components/GoTermChip";
 import ProteinSequence from "@/components/ProteinSequence";
@@ -157,6 +158,12 @@ export default function ProteinResultCard({
             {record.molWt.toLocaleString("en-US")} Da
           </span>
         )}
+        <Link
+          href={`/protein/${encodeURIComponent(record.version || record.accession)}`}
+          className="data text-[11px] text-muted underline decoration-rule underline-offset-[3px] hover:text-petrol hover:decoration-current"
+        >
+          permalink
+        </Link>
       </div>
 
       {record.length != null && (

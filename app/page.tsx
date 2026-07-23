@@ -19,10 +19,20 @@ export default function HomePage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // A RefSeq/GenBank protein accession (WP_051985049, NP_..., ABC12345.1) or a
+  // bare UID goes straight to its protein page; anything else is a taxon name.
+  const ACCESSION_RE = /^([A-Z]{2}_\d+(\.\d+)?|[A-Z]{3}\d{5,}(\.\d+)?|\d{4,})$/i;
+
   async function resolve(name: string) {
     const trimmed = name.trim();
     if (!trimmed) return;
     setQuery(trimmed);
+
+    if (ACCESSION_RE.test(trimmed)) {
+      router.push(`/protein/${encodeURIComponent(trimmed)}`);
+      return;
+    }
+
     setLoading(true);
     setError(null);
     try {
@@ -60,7 +70,7 @@ export default function HomePage() {
         style={{ animationDelay: "80ms" }}
       >
         <label htmlFor="taxon" className="eyebrow">
-          genus or species
+          genus, species, or protein accession
         </label>
         <div className="mt-2 flex flex-col gap-2 sm:flex-row">
           <input

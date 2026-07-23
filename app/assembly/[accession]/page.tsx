@@ -46,6 +46,8 @@ function AssemblyView({ params }: { params: Promise<{ accession: string }> }) {
   const [suggestions, setSuggestions] = useState<ProteinSuggestion[]>([]);
   const [searchedTerm, setSearchedTerm] = useState("");
   const [stats, setStats] = useState<AssemblyStats | null>(null);
+  const [sortBy, setSortBy] = useState<"default" | "length" | "molWt">("default");
+  const [onlyWithGo, setOnlyWithGo] = useState(false);
 
   // Load the genome stats strip once, independent of the protein search.
   useEffect(() => {
@@ -163,6 +165,15 @@ function AssemblyView({ params }: { params: Promise<{ accession: string }> }) {
   const searching = status === "searching";
   const hasMore = fetchedCount < allHits.length;
 
+  // Client-side sort/filter over the records already fetched.
+  const visibleRecords = records
+    .filter((r) => !onlyWithGo || r.goTerms.length > 0)
+    .sort((a, b) => {
+      if (sortBy === "length") return (b.length ?? 0) - (a.length ?? 0);
+      if (sortBy === "molWt") return (b.molWt ?? 0) - (a.molWt ?? 0);
+      return 0; // default: NCBI relevance order
+    });
+
   return (
     <div>
       <nav className="eyebrow flex flex-wrap items-center gap-2">
@@ -276,12 +287,39 @@ function AssemblyView({ params }: { params: Promise<{ accession: string }> }) {
 
       {records.length > 0 && (
         <>
-          <p className="eyebrow mt-8">
-            {records.length} distinct record{records.length === 1 ? "" : "s"}
-            {allHits.length > fetchedCount && ` · ${allHits.length} matches total`}
-          </p>
+          <div className="mt-8 flex flex-wrap items-center justify-between gap-3">
+            <p className="eyebrow">
+              {visibleRecords.length} record{visibleRecords.length === 1 ? "" : "s"}
+              {allHits.length > fetchedCount && ` · ${allHits.length} matches total`}
+            </p>
+            <div className="flex items-center gap-3 text-[12px]">
+              <label className="flex items-center gap-1.5 text-muted">
+                <span className="eyebrow">sort</span>
+                <select
+                  value={sortBy}
+                  onChange={(e) =>
+                    setSortBy(e.target.value as "default" | "length" | "molWt")
+                  }
+                  className="rounded border border-rule bg-surface px-1.5 py-1 text-[12px] text-ink outline-none focus:border-petrol"
+                >
+                  <option value="default">relevance</option>
+                  <option value="length">length</option>
+                  <option value="molWt">mol. weight</option>
+                </select>
+              </label>
+              <label className="flex cursor-pointer items-center gap-1.5 text-muted">
+                <input
+                  type="checkbox"
+                  checked={onlyWithGo}
+                  onChange={(e) => setOnlyWithGo(e.target.checked)}
+                  className="accent-petrol"
+                />
+                has GO
+              </label>
+            </div>
+          </div>
           <div className="mt-3 flex flex-col gap-3">
-            {records.map((rec, i) => (
+            {visibleRecords.map((rec, i) => (
               <ProteinResultCard
                 key={recordKey(rec)}
                 record={rec}

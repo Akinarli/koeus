@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useCompare } from "@/hooks/useCompare";
 import { clearCompare, recordKey, removeFromCompare } from "@/lib/compare";
 import { alignPercentIdentity } from "@/lib/align";
+import { neighborJoining, type TreeNode } from "@/lib/tree";
+import PhyloTree from "@/components/PhyloTree";
 import type { ProteinDomain, ProteinRecord } from "@/lib/types";
 
 function fasta(records: ProteinRecord[]): string {
@@ -89,6 +91,7 @@ function DomainRow({
 export default function ComparePage() {
   const records = useCompare();
   const [identity, setIdentity] = useState<Record<string, number | null>>({});
+  const [tree, setTree] = useState<TreeNode | null>(null);
   const [computing, setComputing] = useState(false);
 
   const maxLength = records.reduce((m, r) => Math.max(m, r.length ?? 0), 0) || 1;
@@ -108,6 +111,22 @@ export default function ComparePage() {
         }
       }
       setIdentity(out);
+
+      // Build a phylogeny from the sequenced subset (need ≥3 for a tree shape).
+      const seqRecs = records.filter((r) => r.sequence);
+      if (seqRecs.length >= 3) {
+        const labels = seqRecs.map((r) => r.version || r.accession);
+        const dist = seqRecs.map((a, i) =>
+          seqRecs.map((b, j) => {
+            if (i === j) return 0;
+            const res = alignPercentIdentity(a.sequence!, b.sequence!);
+            return res ? 1 - res.identity / 100 : 1;
+          }),
+        );
+        setTree(neighborJoining(labels, dist));
+      } else {
+        setTree(null);
+      }
       setComputing(false);
     }, 20);
   }
@@ -281,6 +300,18 @@ export default function ComparePage() {
                       ))}
                     </tbody>
                   </table>
+                </div>
+              )}
+
+              {tree && (
+                <div className="mt-6">
+                  <h3 className="eyebrow">phylogeny (neighbor-joining)</h3>
+                  <p className="mt-1 text-[12px] text-muted">
+                    From % identity distances. Closer proteins branch together.
+                  </p>
+                  <div className="mt-3">
+                    <PhyloTree root={tree} />
+                  </div>
                 </div>
               )}
             </section>

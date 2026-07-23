@@ -1,16 +1,42 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 import CompareToggle from "@/components/CompareToggle";
+import { toggleCompare, isInCompare } from "@/lib/compare";
 import type { ProteinRecord } from "@/lib/types";
 
 const CONCURRENCY = 3;
+const FETCH_TIMEOUT = 25_000;
 
 interface Row {
   id: string;
   record?: ProteinRecord;
   error?: string;
+}
+
+// Fetch one record with a timeout + a single retry, so a hung request becomes an
+// error instead of leaving the row stuck forever.
+async function fetchRecord(
+  id: string,
+): Promise<{ record?: ProteinRecord; error?: string }> {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT);
+    try {
+      const r = await fetch(`/api/protein-fetch?id=${encodeURIComponent(id)}`, {
+        signal: ctrl.signal,
+      });
+      const rec = (await r.json()) as ProteinRecord & { error?: string };
+      if (r.ok && !rec.error) return { record: rec };
+      if (attempt === 1) return { error: rec.error ?? `HTTP ${r.status}` };
+    } catch {
+      if (attempt === 1) return { error: "timed out" };
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+  return { error: "failed to load" };
 }
 
 // Paste a list of accessions and get them all as a table — the supplementary-
@@ -22,44 +48,36 @@ export default function BatchPage() {
   const [status, setStatus] = useState<"idle" | "loading" | "done">("idle");
   const [done, setDone] = useState(0);
 
+  const runningRef = useRef(false);
+
   async function run() {
-    const ids = Array.from(
-      new Set(
-        text
-          .split(/[\s,;]+/)
-          .map((s) => s.trim())
-          .filter(Boolean),
-      ),
-    ).slice(0, 100);
+    if (runningRef.current) return; // guard against a double-click / overlap
+    // Dedupe by accession without the version suffix, so "WP_x" and "WP_x.1"
+    // don't become two separate rows.
+    const seen = new Set<string>();
+    const ids: string[] = [];
+    for (const raw of text.split(/[\s,;]+/).map((s) => s.trim()).filter(Boolean)) {
+      const key = raw.replace(/\.\d+$/, "").toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      ids.push(raw);
+      if (ids.length >= 100) break;
+    }
     if (ids.length === 0) return;
 
+    runningRef.current = true;
     setStatus("loading");
     setDone(0);
     setRows(ids.map((id) => ({ id })));
 
-    const queue = [...ids];
+    const queue = ids.map((id, i) => ({ id, i }));
     const worker = async () => {
-      let id: string | undefined;
-      while ((id = queue.shift())) {
-        try {
-          const r = await fetch(`/api/protein-fetch?id=${encodeURIComponent(id)}`);
-          const rec = (await r.json()) as ProteinRecord & { error?: string };
-          setRows((prev) =>
-            prev.map((row) =>
-              row.id === id
-                ? r.ok && !rec.error
-                  ? { id, record: rec }
-                  : { id, error: rec.error ?? `HTTP ${r.status}` }
-                : row,
-            ),
-          );
-        } catch {
-          setRows((prev) =>
-            prev.map((row) =>
-              row.id === id ? { id, error: "failed to load" } : row,
-            ),
-          );
-        }
+      let job: { id: string; i: number } | undefined;
+      while ((job = queue.shift())) {
+        const { id, i } = job;
+        const result = await fetchRecord(id);
+        // Update by index — never ambiguous even if two inputs share an id.
+        setRows((prev) => prev.map((row, k) => (k === i ? { id, ...result } : row)));
         setDone((d) => d + 1);
       }
     };
@@ -67,6 +85,13 @@ export default function BatchPage() {
       Array.from({ length: Math.min(CONCURRENCY, ids.length) }, worker),
     );
     setStatus("done");
+    runningRef.current = false;
+  }
+
+  function addAllToCompare() {
+    for (const row of rows) {
+      if (row.record && !isInCompare(row.record)) toggleCompare(row.record);
+    }
   }
 
   const loaded = rows.filter((r) => r.record);
@@ -109,12 +134,21 @@ export default function BatchPage() {
           {status === "loading" ? `Loading ${done}/${rows.length}…` : "Look up"}
         </button>
         {loaded.length > 0 && (
-          <Link
-            href="/compare"
-            className="text-[13px] text-petrol underline decoration-rule underline-offset-[3px] hover:decoration-current"
-          >
-            compare basket →
-          </Link>
+          <>
+            <button
+              type="button"
+              onClick={addAllToCompare}
+              className="text-[13px] text-petrol underline decoration-rule underline-offset-[3px] hover:decoration-current"
+            >
+              add all {loaded.length} to compare
+            </button>
+            <Link
+              href="/compare"
+              className="text-[13px] text-petrol underline decoration-rule underline-offset-[3px] hover:decoration-current"
+            >
+              compare basket →
+            </Link>
+          </>
         )}
       </div>
 
